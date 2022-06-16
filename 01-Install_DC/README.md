@@ -30,3 +30,8 @@ install-ADDSForest
     ```shell
     Set-DnsClientServerAddress -InterfaceIndex 5 -ServerAddresses 10.0.2.155
     ```
+
+5. Join WS-01 to Domain via PS
+```shell
+Add-Computer -DomainName xyz.com -Credential xyz\Administrator -Force -Restart
+```
