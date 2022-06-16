@@ -12,3 +12,21 @@
 Install-WindowsFeature AD-Domain-Services -IncludeManagmentTools
 ```
 
+3. Create AD Forest
+```shell
+import-Module ADDSDeployment
+```
+```shell
+install-ADDSForest
+```
+
+4. Update DNS Server Address After Install (Without SConfig)
+    - Determine which interface is being used:
+    ```shell
+    Get-NetIPAddress -IPAddress 10.0.2.155
+    ```
+
+    - Updated DNS Server Address:
+    ```shell
+    Set-DnsClientServerAddress -InterfaceIndex 5 -ServerAddresses 10.0.2.155
+    ```
