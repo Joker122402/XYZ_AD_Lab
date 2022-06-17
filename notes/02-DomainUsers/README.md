@@ -9,4 +9,4 @@
   - Created `CreateADGroup` and `CreateADUser` functions
   - Tested Script to ensure it is working up to this point
 
-Script and schema can be founf in the code folder. 
+Script and schema can be found in the code folder. 
