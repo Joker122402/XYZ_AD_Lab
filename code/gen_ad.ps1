@@ -1,4 +1,7 @@
-param( [Parameter(Mandatory=$true)] $JSONschema)
+param( 
+    [Parameter(Mandatory=$true)] $JSONschema,
+    [switch] $revert
+    )
 
 function CreateADGroup(){
     param( [Parameter(Mandatory=$true)] $groupObject)
@@ -14,13 +17,6 @@ function RemoveADGroup(){
     Remove-ADGroup -Identity $name -Confirm:$false
 }
 
-function RemoveADUser(){
-    param( [Parameter(Mandatory=$true)] $userObject)
-    $name = $userObject.name
-
-    Remove-ADUser -Identity $name -Confirm:$false
-}
-
 function CreateADUser(){
     param( [Parameter(Mandatory=$true)] $userObject)
 
@@ -34,15 +30,7 @@ function CreateADUser(){
     $samAccountName = $username
     $principalname = $username
     
-   #  try {
-        # Create the AD-User Object
     New-ADUser -Name "$name" -GivenName $firstname -Surname $lastname -SamAccountName $SamAccountName -UserPrincipalName $principalname@$Global:Domain -AccountPassword (ConvertTo-SecureString $password -AsPlainText -Force) -PassThru | Enable-ADAccount
-   #  }
-   #  catch [ ADPasswordComplexityException ]
-   #  { 
-   #      Write-Warning "User $name not created because Password does not meet complexity requirments"
-   #      RemoveADUser $username
-   # }
 
 
     # Add user to its groups
@@ -55,21 +43,34 @@ function CreateADUser(){
         catch [Microsoft.ActiveDirectory.Management.ADIdentityNotFoundException]
         {
             Write-Warning "User $name not added to group $group_name beacuse group does not exist"
-            RemoveADGroup $group_name
         }
     }
 }
 
+function RemoveADUser(){
+    param( [Parameter(Mandatory=$true)] $userObject)
+    $name = $userObject.name
+    $firstname, $lastname = $name.Split(" ")
+    $username = ($firstname[0] + $lastname).ToLower()
+    $samAccountName = $username
+
+    Remove-ADUser -Identity $samAccountName -Confirm:$false
+}
+
 function WeakenPasswordPolicy(){
     secedit /export /cfg c:\Windows\Tasks\secpol.cfg
-    (Get-Content c:\Windows\Tasks\secpol.cfg).replace("PasswordComplexity = 1", "PasswordComplexity = 0") | Out-File c:\Windows\Tasks\secpol.cfg
+    (Get-Content c:\Windows\Tasks\secpol.cfg).replace("PasswordComplexity = 1", "PasswordComplexity = 0").replace("MinimumPasswordLength = 7", "MinimumPasswordLength = 1") | Out-File c:\Windows\Tasks\secpol.cfg
     secedit /configure /db c:\windows\security\local.sdb /cfg c:\Windows\Tasks\secpol.cfg /areas SECURITYPOLICY
     Remove-Item -force c:\Windows\Tasks\secpol.cfg -confirm:$false
 }
 
+function StrengthenPasswordPolicy(){
+    secedit /export /cfg c:\Windows\Tasks\secpol.cfg
+    (Get-Content c:\Windows\Tasks\secpol.cfg).replace("PasswordComplexity = 0", "PasswordComplexity = 1").replace("MinimumPasswordLength = 1", "MinimumPasswordLength = 7") | Out-File c:\Windows\Tasks\secpol.cfg
+    secedit /configure /db c:\windows\security\local.sdb /cfg c:\Windows\Tasks\secpol.cfg /areas SECURITYPOLICY
+    Remove-Item -force c:\Windows\Tasks\secpol.cfg -confirm:$false
+}
 
-# Weaken Password Policy
-WeakenPasswordPolicy
 
 # Ingest schema
 $json = (Get-Content $JSONschema | ConvertFrom-Json)
@@ -77,12 +78,29 @@ $json = (Get-Content $JSONschema | ConvertFrom-Json)
 # Set Global Domain
 $Global:Domain = $json.domain
 
-# Create Groups
-foreach ($group in $json.groups) {
-    CreateADGroup $group
-}
+if (-not $revert){
+    # Weaken Password Policy
+    WeakenPasswordPolicy
 
-# Create Users
-foreach ($user in $json.users) {
-    CreateADUser $user
+    # Create Groups
+    foreach ($group in $json.groups) {
+        CreateADGroup $group
+    }
+
+    # Create Users
+    foreach ($user in $json.users) {
+        CreateADUser $user
+    }
+} else {
+    StrengthenPasswordPolicy
+
+    # Remove Users
+    foreach ($user in $json.users) {
+        RemoveADUser $user
+    }
+
+    # Remove groups
+    foreach ($group in $json.groups) {
+        RemoveADGroup $group
+    }
 }
